@@ -1,9 +1,9 @@
-#Image Textifier
+# Image Textifier
 
 - Left : source, Middle : Binarized, Right : As-is
-  ![lena](result/keep/lena_result.jpg | width=600)
-  ![itworks](result/keep/itworks_result.jpg | width=600)
-  ![me](result/keep/me_result.jpg | width=600)
+  ![lena](result/keep/lena_result.jpg)
+  ![itworks](result/keep/itworks_result.jpg)
+  ![me](result/keep/me_result.jpg)
 
 Create an image made with texts out of an image.
 This small toy is to study python.
