@@ -5,13 +5,26 @@
   ![itworks](result/keep/itworks_result.jpg)
   ![me](result/keep/me_result.jpg)
 
-Create an image made with texts out of an image.
+Create an image made with texts out of an image.  
 This small toy is to study python.
 
 #### Dependency:
 
-> OpenCV
-> NumPy
+> OpenCV (Probably any version will fit)
+
+#### Example:
+
+```python
+from ImageTextifier import ImageTextifier
+import cv2
+
+src = cv2.imread("img_path.jpg")
+textifier = ImageTextifier()
+result_text, result_image = textifier.textify(src)
+cv2.imshow("Result", result_image)
+```
+
+- For more options, refer to [_example.py_](example.py)
 
 #### Generating dataset (ImageTextifierPreproc.py) :
 

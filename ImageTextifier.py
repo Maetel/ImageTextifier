@@ -68,13 +68,13 @@ class ImageTextifier:
                 self.dataset[k] = cv.resize(v, (block_wid, block_hi))
 
     # compare a small image to a set of text images, and returns a character that matches
-    def compare_block(self, src_block):
+    def compare_block(self, src_block, fill_blank = ' '):
         if not self.dataset:
             return
 
         self.update_dataset_size(src_block)
         highest_score = 0
-        highest_text = ' '
+        highest_text = fill_blank
         for k, v in self.dataset.items():
             # similarity = ssim(v, src_block) #skimage
             similarity = cv.matchTemplate(v, src_block, cv.TM_CCOEFF)
@@ -85,7 +85,7 @@ class ImageTextifier:
         return highest_text, highest_score
 
     # main method
-    def textify(self, src, block_wid: int = 20, block_hi: int = 20, speak_process=True, binarize=True, speak_result_as_text=True, return_text_image=True, invert_image=False):
+    def textify(self, src, block_wid: int = 20, block_hi: int = 20, speak_process=True, binarize=True, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
         hi_src, wid_src, _ = src.shape
         wid_dst, hi_dst = wid_src - wid_src % block_wid, hi_src - hi_src % block_hi
 
@@ -96,7 +96,9 @@ class ImageTextifier:
         speak_process_every_nth_block = 1 if block_count <= 17 else int(
             block_count // 17)
 
-        retval = [' ' for cnt in range(block_count)]
+        if not fill_blank or len(fill_blank) > 1:
+            fill_blank = ' '
+        retval = [fill_blank for cnt in range(block_count)]
 
         if speak_process:
             print("Processing...")
@@ -110,7 +112,7 @@ class ImageTextifier:
 
             block = img[row*block_hi: (row+1)*block_hi,
                         col*block_wid: (col+1)*block_wid]
-            text, score = self.compare_block(block)
+            text, score = self.compare_block(block, fill_blank)
             retval[block_idx] = text
 
         if speak_process:

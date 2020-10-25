@@ -22,6 +22,10 @@ def concat_result_images(src, binarized, as_is):
     asis = cv2.cvtColor(as_is, cv2.COLOR_GRAY2BGR)
     return cv2.hconcat([src, bin, asis])
 
+def resize(img, ratio):
+    hi, wid, _ = img.shape
+    return cv2.resize(img, (int(wid*ratio), int(hi*ratio)))
+
 
 def main():
     # setup
@@ -32,6 +36,8 @@ def main():
     textbox_sizes = [2, 8, 4]
     invert_options = [False, True, False]
     skip_index = []
+    fill_blank_with=' ' #'.' will work too
+
     result_images = []
 
     # main loop
@@ -45,9 +51,9 @@ def main():
 
         # main process
         binarized_result, binarized_text_image = processor.textify(
-            src, w, h, speak_process=speak_process, invert_image=invert_image)
+            src, w, h, speak_process=speak_process, invert_image=invert_image, fill_blank=fill_blank_with)
         as_is_result, as_is_text_image = processor.textify(
-            src, w, h, binarize=False, speak_process=speak_process, invert_image=invert_image)
+            src, w, h, binarize=False, speak_process=speak_process, invert_image=invert_image, fill_blank=fill_blank_with)
         
         # write result to file
         result_image = concat_result_images(
