@@ -8,11 +8,11 @@
 Create an image made with texts out of an image.  
 This small toy is to study python.
 
-#### Dependency:
+### Dependency:
 
 > OpenCV (Probably any version will fit)
 
-#### Example:
+### Example:
 
 ```python
 from ImageTextifier import ImageTextifier
@@ -26,27 +26,27 @@ cv2.imshow("Result", result_image)
 
 - For more options, refer to [_example.py_](example.py)
 
-#### Generating dataset (ImageTextifierPreproc.py) :
+### Generating dataset (ImageTextifierPreproc.py) :
 
 1.  Prepare alphabets, numbers, and characters
 1.  Make those as a set of binary images
 
-#### Process (ImageTextifier.py) :
+### Process (ImageTextifier.py) :
 
 1.  Preprocess : Source(wid \* hi) to gray, then blur
 1.  If binarize is on, extract ROI : Apply Otsu binarization as ROI mask
 1.  Begin comparing
-    - Divide ROI mask into blocks of N\*N (default : N=30)
+    - Divide ROI mask into blocks of N\*N (default : N=20)
     - Compare each block with pre-maid text images, and choose one with the highest score
 1.  Return
     - texts
     - an image with texts on it
 
-#### TODO
+### TODO
 
-- Speed up using multiproc/th
+- Speed up using multiprocess/threads
 
-#### Thins I've learned
+### Things I've learned
 
 - Python environment setup using Conda
 - Basic OpenCV & NumPy
