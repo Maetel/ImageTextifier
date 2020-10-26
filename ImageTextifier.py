@@ -6,6 +6,9 @@ from typing import List
 
 # helpers
 
+ITEX_ALGO_DERIVATIVE = 0
+ITEX_ALGO_BINARIZE = 1
+ITEX_ALGO_AS_IS = 2
 
 def showimg(img):
     cv.imshow("temp", img)
@@ -24,25 +27,60 @@ def array_to_2D(list: List, stride: int):
         retval.append(list[start:end])
     return retval
 
+def _preprocess_binarize(src):
+    img = src[:]
+    thres, otsu = cv.threshold(
+            img, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+        # showimg(otsu)
+    for row, row_data in enumerate(otsu):
+        for col, pixel_value in enumerate(row_data):
+            if not pixel_value:
+                img[row][col] = 0
+    return img
 
-def preprocess_source(src, binarize=True, invert=True):
+def _preprocess_derivative(src):
+    hi, wid = src.shape
+    img = np.zeros((hi, wid, 1), np.uint8)
+    #der = cv.Scharr(src, cv.CV_64F, 1, 0)
+    #der = cv.Laplacian(src, cv.CV_64F)
+    der = cv.Canny(src, 100, 100)
+    vf = np.vectorize(lambda x : abs(x))
+    vf(der)
+    
+    min, max = np.amin(der), np.amax(der)
+    thres = 0#max*112/113
+    vf = np.vectorize(lambda x: 0 if x < thres else x)
+    vf(der)
+    #dif = max - min
+    img = (((der-thres)/(max-thres)) * 255).astype(np.uint8)
+
+    bin = _preprocess_binarize(img)
+
+    #showimg(der)
+    #showimg(bin)
+
+    #for row, row_data in enumerate(scharr):
+    #    for col, pixel_value in enumerate(row_data):
+    return bin
+
+            
+
+
+def preprocess_source(src, algorithm, invert=True):
     retval = None
     img = src[:]
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     if invert:
         gray = (255-gray)
     blurred = cv.GaussianBlur(gray, (5, 5), 0)
-    if binarize:
-        thres, otsu = cv.threshold(
-            blurred, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
-        # showimg(otsu)
-        for row, row_data in enumerate(otsu):
-            for col, pixel_value in enumerate(row_data):
-                if not pixel_value:
-                    blurred[row][col] = 0
+
+    if algorithm == ITEX_ALGO_BINARIZE:
+        retval = _preprocess_binarize(blurred)
+    elif algorithm == ITEX_ALGO_AS_IS:
         retval = blurred
-    else:
-        retval = blurred
+    else: #default
+        retval = _preprocess_derivative(blurred)
+        
     return retval
 
 # Main class
@@ -85,12 +123,12 @@ class ImageTextifier:
         return highest_text, highest_score
 
     # main method
-    def textify(self, src, block_wid: int = 20, block_hi: int = 20, speak_process=True, binarize=True, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
+    def textify(self, src, block_wid: int = 20, block_hi: int = 20, speak_process=True, algorithm = ITEX_ALGO_DERIVATIVE, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
         hi_src, wid_src, _ = src.shape
         wid_dst, hi_dst = wid_src - wid_src % block_wid, hi_src - hi_src % block_hi
 
         img = cv.resize(src[:], (wid_dst, hi_dst))
-        img = preprocess_source(img, binarize, invert_image)
+        img = preprocess_source(img, ITEX_ALGO_DERIVATIVE, invert_image)
         block_hor, block_ver = wid_dst // block_wid, hi_dst // block_hi
         block_count = block_hor * block_ver
         speak_process_every_nth_block = 1 if block_count <= 17 else int(

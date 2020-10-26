@@ -1,4 +1,4 @@
-from ImageTextifier import ImageTextifier
+import ImageTextifier as ITEX
 import cv2
 
 
@@ -30,7 +30,7 @@ def resize(img, ratio):
 def main():
     # setup
     speak_process = not False
-    processor = ImageTextifier()
+    processor = ITEX.ImageTextifier()
 
     names = ['lena', 'itworks', 'me']
     textbox_sizes = [2, 8, 4]
@@ -50,10 +50,12 @@ def main():
         w, h = textbox_sizes[idx], textbox_sizes[idx]
 
         # main process
+        derivative_result, derivative_text_image = processor.textify(
+            src, w, h, speak_process=speak_process, algorithm=ITEX.ITEX_ALGO_DERIVATIVE, invert_image=invert_image, fill_blank=fill_blank_with)
         binarized_result, binarized_text_image = processor.textify(
-            src, w, h, speak_process=speak_process, invert_image=invert_image, fill_blank=fill_blank_with)
+            src, w, h, speak_process=speak_process, algorithm=ITEX.ITEX_ALGO_BINARIZE, invert_image=invert_image, fill_blank=fill_blank_with)
         as_is_result, as_is_text_image = processor.textify(
-            src, w, h, binarize=False, speak_process=speak_process, invert_image=invert_image, fill_blank=fill_blank_with)
+            src, w, h, algorithm=ITEX.ITEX_ALGO_AS_IS, speak_process=speak_process, invert_image=invert_image, fill_blank=fill_blank_with)
         
         # write result to file
         result_image = concat_result_images(
