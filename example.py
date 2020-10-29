@@ -1,7 +1,17 @@
 import ImageTextifier as ITEX
 import cv2
 
+########################################## helpers
 
+def in_between(src:str, chars:str = "[]"):
+    if len(chars) == 1:
+        return src[:src.rfind(chars)]
+    elif len(chars) > 2:
+        chars = chars[:2]
+    end = src.rfind(chars[1])
+    start = src[:end].rfind(chars[0])+1
+    return src[start:end]
+    
 def print_result(list):
     for row in list:
         print("".join(row))
@@ -15,72 +25,62 @@ def write_result(list, path, carrige_return=True):
             file.write('\n')
     file.close()
 
-
-def concat_result_images(src, binarized, as_is):
-    src_hi, src_wid, _ = src.shape
-    bin = cv2.cvtColor(binarized, cv2.COLOR_GRAY2BGR)
-    asis = cv2.cvtColor(as_is, cv2.COLOR_GRAY2BGR)
-    return cv2.hconcat([src, bin, asis])
+def concat_result_images(src, der_img, bin_img):
+    return cv2.hconcat([src, cv2.cvtColor(der_img, cv2.COLOR_GRAY2BGR), cv2.cvtColor(bin_img, cv2.COLOR_GRAY2BGR)])
 
 def resize(img, ratio):
     hi, wid, _ = img.shape
     return cv2.resize(img, (int(wid*ratio), int(hi*ratio)))
 
 
-def main():
-    # setup
-    speak_process = not False
-    processor = ITEX.ImageTextifier()
+########################################## Examples begin here
 
-    names = ['lena', 'itworks', 'me']
-    textbox_sizes = [2, 8, 4]
-    invert_options = [False, True, False]
-    skip_index = []
-    fill_blank_with=' ' #'.' will work too
+def simple_example():
+    print("simple_example() begins...")
 
-    result_images = []
+    image_path = "img/lena.jpg"
+    textifier = ITEX.ImageTextifier()
+    result_text, result_image = textifier.textify(cv2.imread(image_path))
 
-    # main loop
-    for idx, name in enumerate(names):
-        # load image and apply options
-        if idx in skip_index:
-            continue
-        src = cv2.imread("img/" + name + ".jpg")
-        invert_image = invert_options[idx]
-        w, h = textbox_sizes[idx], textbox_sizes[idx]
-
-        # main process
-        derivative_result, derivative_text_image = processor.textify(
-            src, w, h, speak_process=speak_process, algorithm=ITEX.ITEX_ALGO_DERIVATIVE, invert_image=invert_image, fill_blank=fill_blank_with)
-        binarized_result, binarized_text_image = processor.textify(
-            src, w, h, speak_process=speak_process, algorithm=ITEX.ITEX_ALGO_BINARIZE, invert_image=invert_image, fill_blank=fill_blank_with)
-        as_is_result, as_is_text_image = processor.textify(
-            src, w, h, algorithm=ITEX.ITEX_ALGO_AS_IS, speak_process=speak_process, invert_image=invert_image, fill_blank=fill_blank_with)
-        
-        # write result to file
-        result_image = concat_result_images(
-            src, binarized_text_image, as_is_text_image)
-        
-        result_dir = "result/"
-        binarized_path, as_is_path, result_path = name + "_binarized", name + "_ as_is", name + "_result"
-        write_result(binarized_result, result_dir + binarized_path + ".txt")
-        write_result(as_is_result, result_dir + as_is_path + ".txt")
-        cv2.imwrite(result_dir + binarized_path + ".jpg", binarized_text_image)
-        cv2.imwrite(result_dir + as_is_path + ".jpg", as_is_text_image)
-        cv2.imwrite(result_dir + result_path + ".jpg", result_image)
-
-        # handle results
-        print(f"Binarized result :")
-        print_result(binarized_result)
-        print(f"As-is result :")
-        print_result(as_is_result)
-        result_images.append(result_image)
-
-    # show and wait
-    for idx, result in enumerate(result_images):
-        cv2.imshow('Result'+str(idx+1), result)
+    cv2.imshow("Simple example result", result_image)
     cv2.waitKey(0)
+    print("simple_example() finished")
+
+def full_function_example():
+    print("full_function_example() begins...")
+
+    image_path = "img/lena.jpg"
+    src_image = cv2.imread(image_path)
+    image_name = in_between(image_path, '/.')
+    textifier = ITEX.ImageTextifier()
+
+    # setup
+    algorithm1 = ITEX.ITEX_ALGO_DERIVATIVE
+    algorithm2 = ITEX.ITEX_ALGO_BINARIZE
+    grid_size = ITEX.ITEX_RESOLUTION_LOW #equals to int(30)
+    invert_image = False
+    speak_process = True
+    speak_result_as_text = False
+    return_text_image = True
+    fill_blank_with=' ' #' ' will work too
+
+    derivative_result, derivative_text_image = textifier.textify(src_image, grid_size=grid_size, speak_process=speak_process, algorithm=algorithm1, invert_image=invert_image, speak_result_as_text=speak_result_as_text, return_text_image=return_text_image, fill_blank=fill_blank_with)
+
+    binarized_result, binarized_text_image = textifier.textify(src_image, grid_size=grid_size, speak_process=speak_process, algorithm=algorithm2, invert_image=invert_image, speak_result_as_text=speak_result_as_text, return_text_image=return_text_image, fill_blank=fill_blank_with)
+
+    #show results
+    print(f"Algorithm - Derivative :")
+    print_result(derivative_result)
+    print(f"Algorithm - Binarized :")
+    print_result(binarized_result)
+    
+    concatted = concat_result_images(src_image, derivative_text_image, binarized_text_image)
+    cv2.imshow("Full function result", concatted)
+    cv2.waitKey(0)
+
+    print("full_function_example() finished")
 
 
 if __name__ == "__main__":
-    main()
+    #simple_example()
+    full_function_example()

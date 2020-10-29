@@ -1,15 +1,18 @@
 #from skimage.metrics import structural_similarity as ssim
-import ImageTextifierPreproc as preprocess
 import cv2 as cv
 import numpy as np
 from typing import List
-
-# helpers
 
 ITEX_ALGO_DERIVATIVE = 0
 ITEX_ALGO_BINARIZE = 1
 ITEX_ALGO_AS_IS = 2
 
+ITEX_RESOLUTION_VERY_HIGH = 250
+ITEX_RESOLUTION_HIGH = 100
+ITEX_RESOLUTION_MEDIUM = 60
+ITEX_RESOLUTION_LOW = 30
+
+########################################## helpers
 def showimg(img):
     cv.imshow("temp", img)
     cv.waitKey(0)
@@ -27,7 +30,68 @@ def array_to_2D(list: List, stride: int):
         retval.append(list[start:end])
     return retval
 
-def _preprocess_binarize(src):
+########################################## !helpers
+
+########################################## preprocessors
+def _preproc_create_texts() -> str:
+    alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    nums = "0123456789"
+    chars = " ,./<>?`~!@#$%^&*()-_=+[{]}\|;:\'\""
+    kor = "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㄲㄸㅃㅆㅉ"
+    retval = alphabets + alphabets.lower() + nums + chars + kor
+    return retval, len(retval)
+
+
+def _preproc_create_text_block_image(text: str, block_wid: int = 30, block_hi: int = 30):
+    if not text:
+        text = ' '
+    if len(text) > 1:
+        text = text[0]
+
+    # magical settings
+    '''
+    FONT_HERSHEY_SIMPLEX        = 0, //!< normal size sans-serif font
+    FONT_HERSHEY_PLAIN          = 1, //!< small size sans-serif font
+    FONT_HERSHEY_DUPLEX         = 2, //!< normal size sans-serif font (more complex than FONT_HERSHEY_SIMPLEX)
+    FONT_HERSHEY_COMPLEX        = 3, //!< normal size serif font
+    FONT_HERSHEY_TRIPLEX        = 4, //!< normal size serif font (more complex than FONT_HERSHEY_COMPLEX)
+    FONT_HERSHEY_COMPLEX_SMALL  = 5, //!< smaller version of FONT_HERSHEY_COMPLEX
+    FONT_HERSHEY_SCRIPT_SIMPLEX = 6, //!< hand-writing style font
+    FONT_HERSHEY_SCRIPT_COMPLEX
+    '''
+    #font = cv.FONT_HERSHEY_PLAIN
+    font = cv.FONT_HERSHEY_DUPLEX
+    fontScale = 1
+    fontColor = (255, 255, 255)
+    lineType = 1
+    block = 30
+    vertical_magic = 8
+    wid, hi = block, block + vertical_magic
+    img = np.zeros((hi, wid, 1), np.uint8)
+    hor_offset = int(block/10)
+
+    #x_coord = idx * block + hor_offset
+    x_coord = hor_offset
+    y_coord = block - hor_offset  # vertical_offset
+    cv.putText(img, text,
+                (x_coord, y_coord),
+                font,
+                fontScale,
+                fontColor,
+                lineType)
+    img = cv.resize(img, (block_wid, block_hi))
+    return img
+
+
+def _preproc_create_images(block_wid: int = 30, block_hi: int = 30):
+    retval = {}
+    texts, textlen = _preproc_create_texts()
+    for idx, text in enumerate(texts):
+        img = _preproc_create_text_block_image(text, block_wid, block_hi)
+        retval[texts[idx]] = img
+    return retval
+
+def _preproc_binarize(src):
     img = src[:]
     thres, otsu = cv.threshold(
             img, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
@@ -38,7 +102,7 @@ def _preprocess_binarize(src):
                 img[row][col] = 0
     return img
 
-def _preprocess_derivative(src):
+def _preproc_derivative(src):
     hi, wid = src.shape
     img = np.zeros((hi, wid, 1), np.uint8)
     #der = cv.Scharr(src, cv.CV_64F, 1, 0)
@@ -54,7 +118,7 @@ def _preprocess_derivative(src):
     #dif = max - min
     img = (((der-thres)/(max-thres)) * 255).astype(np.uint8)
 
-    bin = _preprocess_binarize(img)
+    bin = _preproc_binarize(img)
 
     #showimg(der)
     #showimg(bin)
@@ -62,9 +126,6 @@ def _preprocess_derivative(src):
     #for row, row_data in enumerate(scharr):
     #    for col, pixel_value in enumerate(row_data):
     return bin
-
-            
-
 
 def preprocess_source(src, algorithm, invert=True):
     retval = None
@@ -75,24 +136,24 @@ def preprocess_source(src, algorithm, invert=True):
     blurred = cv.GaussianBlur(gray, (5, 5), 0)
 
     if algorithm == ITEX_ALGO_BINARIZE:
-        retval = _preprocess_binarize(blurred)
+        retval = _preproc_binarize(blurred)
     elif algorithm == ITEX_ALGO_AS_IS:
         retval = blurred
     else: #default
-        retval = _preprocess_derivative(blurred)
+        retval = _preproc_derivative(blurred)
         
     return retval
+########################################## !preprocessors
 
-# Main class
 
-
+########################################## Main class
 class ImageTextifier:
     def __init__(self, block_wid: int = 20, block_hi: int = 20):
         self.dataset = None
         self.create_dataset(block_wid, block_hi)
 
     def create_dataset(self, block_wid: int = 20, block_hi: int = 20):
-        self.dataset = preprocess.createImages(block_wid, block_hi)
+        self.dataset = _preproc_create_images(block_wid, block_hi)
         return self.dataset
 
     # match dataset size to source block size
@@ -109,13 +170,25 @@ class ImageTextifier:
     def compare_block(self, src_block, fill_blank = ' '):
         if not self.dataset:
             return
+        #if empty block, return fill_blank with the highest score
+        if not np.sum(src_block):
+            return fill_blank, 1
 
         self.update_dataset_size(src_block)
         highest_score = 0
         highest_text = fill_blank
         for k, v in self.dataset.items():
             # similarity = ssim(v, src_block) #skimage
-            similarity = cv.matchTemplate(v, src_block, cv.TM_CCOEFF)
+            '''
+            matchTemplate methods :
+            cv.TM_CCOEFF
+            cv.TM_CCOEFF_NORMED
+            cv.TM_CCORR
+            cv.TM_CCORR_NORMED
+            cv.TM_SQDIFF
+            cv.TM_SQDIFF_NORMED
+            '''
+            similarity = cv.matchTemplate(v, src_block, cv.TM_CCOEFF_NORMED)
             if highest_score < similarity:
                 highest_score = similarity
                 highest_text = k
@@ -123,19 +196,23 @@ class ImageTextifier:
         return highest_text, highest_score
 
     # main method
-    def textify(self, src, block_wid: int = 20, block_hi: int = 20, speak_process=True, algorithm = ITEX_ALGO_DERIVATIVE, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
+    def textify(self, src, grid_size=ITEX_RESOLUTION_MEDIUM, algorithm = ITEX_ALGO_DERIVATIVE, speak_process=True, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
+        #setup basic variables
         hi_src, wid_src, _ = src.shape
-        wid_dst, hi_dst = wid_src - wid_src % block_wid, hi_src - hi_src % block_hi
-
-        img = cv.resize(src[:], (wid_dst, hi_dst))
-        img = preprocess_source(img, ITEX_ALGO_DERIVATIVE, invert_image)
+        wid_dst, hi_dst = wid_src - wid_src % grid_size, hi_src - hi_src % grid_size
+        smaller_block_size = min(wid_dst // grid_size, hi_dst // grid_size)
+        block_wid, block_hi = smaller_block_size, smaller_block_size
         block_hor, block_ver = wid_dst // block_wid, hi_dst // block_hi
         block_count = block_hor * block_ver
-        speak_process_every_nth_block = 1 if block_count <= 17 else int(
-            block_count // 17)
+        speak_process_every_nth_block = 1 if block_count <= 13 else int(block_count // 13)
 
-        if not fill_blank or len(fill_blank) > 1:
+        img = cv.resize(src[:], (wid_dst, hi_dst))
+        img = preprocess_source(img, algorithm, invert_image)
+        
+        if not fill_blank:
             fill_blank = ' '
+        elif len(fill_blank) > 1:
+            fill_blank = fill_blank[0]
         retval = [fill_blank for cnt in range(block_count)]
 
         if speak_process:
@@ -174,3 +251,5 @@ class ImageTextifier:
             return retval_2D, text_image
 
         return retval_2D
+
+########################################## !Main class
