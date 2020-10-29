@@ -1,5 +1,6 @@
 # Image Textifier
 
+- Row1 : Low resolution, Row2 : Medium resolution
 - Left : source, Middle : Derivative, Right : Binarized
   ![lena_low](result/lena_low.jpg)
   ![lena_mid](result/lena_mid.jpg)
