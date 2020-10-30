@@ -32,6 +32,28 @@ def array_to_2D(list: List, stride: int):
         start, end = row * stride, (row+1) * stride
         retval.append(list[start:end])
     return retval
+
+class Timer:
+    def __init__(self):
+        self._created = time.perf_counter()
+        self._begin = 0
+        self._last = 0
+
+    # from instance creation till now
+    def until_now(self):
+        return time.perf_counter() - self._created
+
+    def begin(self):
+        self._begin = time.perf_counter()
+        return self._begin
+    
+    def end(self):
+        self._last = time.perf_counter() - self._begin
+        return self._last
+    
+    def last_result(self):
+        return self._last
+
 # !helpers
 ########################################## preprocessors
 def _preproc_create_texts() -> str:
@@ -214,6 +236,8 @@ class ImageTextifier:
 
     # main method
     def textify(self, src, grid_size=ITEX_RESOLUTION_MEDIUM, algorithm = ITEX_ALGO_DERIVATIVE, speak_process=True, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
+        total_timer, process_timer = Timer(), Timer()
+        total_timer.begin()
         if speak_process:
             print("Warming up...")
         #setup basic variables
@@ -223,7 +247,6 @@ class ImageTextifier:
         block_wid, block_hi = smaller_block_size, smaller_block_size
         block_hor, block_ver = wid_dst // block_wid, hi_dst // block_hi
         block_count = block_hor * block_ver
-        speak_process_every_nth_block = 1 if block_count <= 13 else int(block_count // 13)
         self.update_dataset_size(block_hi, block_wid)
 
         img = cv.resize(src[:], (wid_dst, hi_dst))
@@ -237,16 +260,14 @@ class ImageTextifier:
         # begin main processing
         if speak_process:
             print("Processing...")
-        _begin = time.perf_counter()
-        manager = multiprocessing.Manager()
-        func = partial(block_idx_to_img, img, block_hor, block_wid, block_hi, self.compare_block, fill_blank)
+        process_timer.begin()
         pool = multiprocessing.Pool()
+        func = partial(block_idx_to_img, img, block_hor, block_wid, block_hi, self.compare_block, fill_blank)
         retval = pool.map(func, range(block_count))
         pool.close()
         pool.join()
-        _end = time.perf_counter()
         if speak_process:
-            print(f"Finished ({_end - _begin:0.4f})s")
+            print(f"Finished ({process_timer.end():0.4f})s")
 
         # handle results
         if speak_result_as_text:
@@ -256,16 +277,18 @@ class ImageTextifier:
 
         retval_2D = array_to_2D(retval, block_hor)
 
-        if return_text_image:
-            text_image = np.zeros_like(img)
-            for block_idx, char in enumerate(retval):
-                col = block_idx % block_hor
-                row = block_idx // block_hor
-                text_image[row*block_hi: (row+1)*block_hi,
-                           col*block_wid: (col+1)*block_wid] = self.dataset[char]
-            text_image = cv.resize(text_image, (wid_src, hi_src))
-            return retval_2D, text_image
+        if not return_text_image:
+            return retval_2D
 
-        return retval_2D
+        text_image = np.zeros_like(img)
+        for block_idx, char in enumerate(retval):
+            col = block_idx % block_hor
+            row = block_idx // block_hor
+            text_image[row*block_hi: (row+1)*block_hi,
+                        col*block_wid: (col+1)*block_wid] = self.dataset[char]
+        text_image = cv.resize(text_image, (wid_src, hi_src))
+        if speak_process:
+            print(f"Total elapsed ({total_timer.end():0.4f})s")
+        return retval_2D, text_image
 
 # !Main class
