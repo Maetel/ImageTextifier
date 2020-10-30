@@ -2,6 +2,9 @@
 import cv2 as cv
 import numpy as np
 from typing import List
+import multiprocessing
+import time
+from functools import partial
 
 ITEX_ALGO_DERIVATIVE = 0
 ITEX_ALGO_BINARIZE = 1
@@ -29,9 +32,7 @@ def array_to_2D(list: List, stride: int):
         start, end = row * stride, (row+1) * stride
         retval.append(list[start:end])
     return retval
-
-########################################## !helpers
-
+# !helpers
 ########################################## preprocessors
 def _preproc_create_texts() -> str:
     alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -143,9 +144,19 @@ def preprocess_source(src, algorithm, invert=True):
         retval = _preproc_derivative(blurred)
         
     return retval
-########################################## !preprocessors
+#!preprocessors
+########################################## Pure functions
 
+def block_idx_to_img(img, block_hor, block_wid, block_hi, comparer, fill_blank, block_idx):
+    col = block_idx % block_hor
+    row = block_idx // block_hor
 
+    block = img[row*block_hi: (row+1)*block_hi,
+                col*block_wid: (col+1)*block_wid]
+    text, score = comparer(block, fill_blank)
+    return text
+
+# !Pure functions
 ########################################## Main class
 class ImageTextifier:
     def __init__(self, block_wid: int = 20, block_hi: int = 20):
@@ -158,9 +169,12 @@ class ImageTextifier:
 
     # match dataset size to source block size
     def update_dataset_size(self, src_block):
+        block_hi, block_wid = src_block.shape
+        self.update_dataset_size(block_hi, block_wid)
+
+    def update_dataset_size(self, block_hi, block_wid):
         if not self.dataset:
             return
-        block_hi, block_wid = src_block.shape
         datum_hi, datum_wid = self.dataset['A'].shape
         if (block_wid, block_hi) != (datum_wid, datum_hi):
             for k, v in self.dataset.items():
@@ -174,7 +188,8 @@ class ImageTextifier:
         if not np.sum(src_block):
             return fill_blank, 1
 
-        self.update_dataset_size(src_block)
+        # assume dataset size is already updated
+        #self.update_dataset_size(src_block)
         highest_score = 0
         highest_text = fill_blank
         for k, v in self.dataset.items():
@@ -195,8 +210,12 @@ class ImageTextifier:
                 #print(f"Highest score/text : {highest_score}/{highest_text}")
         return highest_text, highest_score
 
+
+
     # main method
     def textify(self, src, grid_size=ITEX_RESOLUTION_MEDIUM, algorithm = ITEX_ALGO_DERIVATIVE, speak_process=True, speak_result_as_text=True, return_text_image=True, invert_image=False, fill_blank = ' '):
+        if speak_process:
+            print("Warming up...")
         #setup basic variables
         hi_src, wid_src, _ = src.shape
         wid_dst, hi_dst = wid_src - wid_src % grid_size, hi_src - hi_src % grid_size
@@ -205,6 +224,7 @@ class ImageTextifier:
         block_hor, block_ver = wid_dst // block_wid, hi_dst // block_hi
         block_count = block_hor * block_ver
         speak_process_every_nth_block = 1 if block_count <= 13 else int(block_count // 13)
+        self.update_dataset_size(block_hi, block_wid)
 
         img = cv.resize(src[:], (wid_dst, hi_dst))
         img = preprocess_source(img, algorithm, invert_image)
@@ -213,26 +233,22 @@ class ImageTextifier:
             fill_blank = ' '
         elif len(fill_blank) > 1:
             fill_blank = fill_blank[0]
-        retval = [fill_blank for cnt in range(block_count)]
-
+        
+        # begin main processing
         if speak_process:
             print("Processing...")
-
-        for block_idx in range(block_count):
-            if speak_process:
-                if (block_idx % speak_process_every_nth_block) == 0:
-                    print(f"  {int((block_idx/block_count)*100)}%")
-            col = block_idx % block_hor
-            row = block_idx // block_hor
-
-            block = img[row*block_hi: (row+1)*block_hi,
-                        col*block_wid: (col+1)*block_wid]
-            text, score = self.compare_block(block, fill_blank)
-            retval[block_idx] = text
-
+        _begin = time.perf_counter()
+        manager = multiprocessing.Manager()
+        func = partial(block_idx_to_img, img, block_hor, block_wid, block_hi, self.compare_block, fill_blank)
+        pool = multiprocessing.Pool()
+        retval = pool.map(func, range(block_count))
+        pool.close()
+        pool.join()
+        _end = time.perf_counter()
         if speak_process:
-            print("Finished")
+            print(f"Finished ({_end - _begin:0.4f})s")
 
+        # handle results
         if speak_result_as_text:
             for row in range(block_ver):
                 start = block_ver * row
@@ -252,4 +268,4 @@ class ImageTextifier:
 
         return retval_2D
 
-########################################## !Main class
+# !Main class
