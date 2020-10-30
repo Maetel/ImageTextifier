@@ -42,9 +42,10 @@ def simple_example():
 
 ### TODO
 
-- Speed up using multiprocess/threads
+- Make the result look better
 
 ### Things I've learned
 
 - Python environment setup using Conda
 - Basic OpenCV & NumPy
+- Basic multiprocess module & Timer
