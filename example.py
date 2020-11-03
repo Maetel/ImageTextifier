@@ -1,7 +1,11 @@
 import ImageTextifier as ITEX
 import cv2
+import sys
 
 ########################################## helpers
+def is_gui():
+    return not sys.stdin.isatty()
+
 
 def in_between(src:str, chars:str = "[]"):
     if len(chars) == 1:
@@ -75,7 +79,8 @@ def full_function_example():
     print_result(binarized_result)
     
     concatted = concat_result_images(src_image, derivative_text_image, binarized_text_image)
-    cv2.imshow("Full function result", concatted)
+    if is_gui():
+        cv2.imshow("Full function result", concatted)
     cv2.waitKey(0)
 
     print("full_function_example() finished")
